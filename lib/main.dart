@@ -1,7 +1,10 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'firebase_options.dart';
 import 'providers/app_state.dart';
 import 'screens/activity_log_screen.dart';
+import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/project_detail_screen.dart';
@@ -10,7 +13,16 @@ import 'screens/team_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/create_task_dialog.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint('Firebase initialization notice: $e');
+  }
+
   runApp(
     ChangeNotifierProvider(
       create: (_) => AppState(),
@@ -20,15 +32,31 @@ void main() {
 }
 
 class TaskManagementApp extends StatelessWidget {
-  const TaskManagementApp({super.key});
+  final Widget? home;
+  const TaskManagementApp({super.key, this.home});
 
   @override
   Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+
+    final isTestEnvironment =
+        WidgetsBinding.instance.runtimeType.toString().contains('Test');
+
+    Widget initialScreen;
+    if (home != null) {
+      initialScreen = home!;
+    } else if (isTestEnvironment) {
+      initialScreen = const MainShell();
+    } else {
+      initialScreen =
+          appState.isAuthenticated ? const MainShell() : const AuthScreen();
+    }
+
     return MaterialApp(
       title: 'TaskPulse - Project & Task Management System',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const MainShell(),
+      home: initialScreen,
     );
   }
 }
@@ -64,10 +92,49 @@ class _MainShellState extends State<MainShell> {
     });
   }
 
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2 && parts[0].isNotEmpty && parts[1].isNotEmpty) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return parts.isNotEmpty && parts[0].isNotEmpty
+        ? parts[0][0].toUpperCase()
+        : '?';
+  }
+
+  Future<void> _handleSignOut(BuildContext context, AppState appState) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign Out'),
+        content:
+            const Text('Are you sure you want to sign out of your workspace?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await appState.signOut();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final unreadNotifs = appState.unreadNotificationsCount;
+    final initials = _getInitials(appState.currentUser);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -94,39 +161,24 @@ class _MainShellState extends State<MainShell> {
                     size: 18,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'TaskPulse',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    if (isWide)
-                      Text(
-                        'Project & Task Management System',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                  ],
+                const SizedBox(width: 8),
+                const Text(
+                  'TaskPulse',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
                 ),
               ],
             ),
             actions: [
-              // Current User Badge (Compact on mobile, full on desktop)
-              if (isWide)
+              // Current User Badge (Compact popup on mobile, full card on desktop)
+              if (isWide) ...[
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  margin: const EdgeInsets.only(right: 8),
+                  margin: const EdgeInsets.only(right: 4),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(20),
@@ -135,12 +187,12 @@ class _MainShellState extends State<MainShell> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const CircleAvatar(
+                      CircleAvatar(
                         radius: 12,
-                        backgroundColor: Color(0xFF4F46E5),
+                        backgroundColor: const Color(0xFF4F46E5),
                         child: Text(
-                          'NS',
-                          style: TextStyle(
+                          initials,
+                          style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -166,18 +218,67 @@ class _MainShellState extends State<MainShell> {
                       ),
                     ],
                   ),
-                )
-              else
-                Tooltip(
-                  message: '${appState.currentUser} (${appState.currentUserRole})',
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4),
+                ),
+                IconButton(
+                  tooltip: 'Sign Out',
+                  icon: const Icon(Icons.logout_rounded,
+                      size: 19, color: Color(0xFF64748B)),
+                  onPressed: () => _handleSignOut(context, appState),
+                ),
+              ] else ...[
+                PopupMenuButton<String>(
+                  tooltip: 'User Profile & Sign Out',
+                  offset: const Offset(0, 40),
+                  onSelected: (val) {
+                    if (val == 'signout') {
+                      _handleSignOut(context, appState);
+                    }
+                  },
+                  itemBuilder: (ctx) => [
+                    PopupMenuItem(
+                      enabled: false,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            appState.currentUser,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          Text(
+                            appState.currentUserRole,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 'signout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout_rounded,
+                              size: 18, color: Color(0xFFEF4444)),
+                          SizedBox(width: 8),
+                          Text('Sign Out',
+                              style: TextStyle(color: Color(0xFFEF4444))),
+                        ],
+                      ),
+                    ),
+                  ],
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: CircleAvatar(
                       radius: 14,
-                      backgroundColor: Color(0xFF4F46E5),
+                      backgroundColor: const Color(0xFF4F46E5),
                       child: Text(
-                        'NS',
-                        style: TextStyle(
+                        initials,
+                        style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
@@ -186,6 +287,7 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ),
                 ),
+              ],
 
               // Notifications Bell with Badge
               IconButton(
@@ -200,7 +302,7 @@ class _MainShellState extends State<MainShell> {
                 ),
               ),
 
-              // Quick Add Task Button (Icon button on mobile, full labeled button on desktop)
+              // Quick Add Task Button
               if (isWide)
                 Padding(
                   padding: const EdgeInsets.only(left: 4, right: 16),

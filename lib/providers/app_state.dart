@@ -1,13 +1,26 @@
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/models.dart';
+import '../services/firebase_service.dart';
 
 class AppState extends ChangeNotifier {
   final _uuid = const Uuid();
+  final FirebaseService _firebaseService = FirebaseService();
 
   // Current logged in user profile (for audit logging & collaboration)
-  final String currentUser = 'Naman Sethi';
-  final String currentUserRole = 'Project Lead';
+  String _currentUser = 'Naman Sethi';
+  String _currentUserRole = 'Project Lead & Senior Engineer';
+  String _currentUserEmail = 'naman.sethi@example.com';
+  User? _firebaseUser;
+  StreamSubscription<User?>? _authSubscription;
+
+  String get currentUser => _currentUser;
+  String get currentUserRole => _currentUserRole;
+  String get currentUserEmail => _currentUserEmail;
+  User? get firebaseUser => _firebaseUser;
+  bool get isAuthenticated => _firebaseUser != null;
 
   // State collections
   List<TeamMember> _teamMembers = [];
@@ -50,6 +63,110 @@ class AppState extends ChangeNotifier {
 
   AppState() {
     _seedInitialData();
+    _initAuthListener();
+  }
+
+  void _initAuthListener() {
+    try {
+      _authSubscription = _firebaseService.authStateChanges.listen((user) async {
+        _firebaseUser = user;
+        if (user != null) {
+          _currentUser = user.displayName ?? user.email?.split('@').first ?? 'Member';
+          _currentUserEmail = user.email ?? '';
+
+          final profile = await _firebaseService.getUserProfile(user.uid);
+          if (profile != null && profile['role'] != null) {
+            _currentUserRole = profile['role'];
+          }
+
+          final exists = _teamMembers.any(
+              (m) => m.email.toLowerCase() == _currentUserEmail.toLowerCase());
+          if (!exists && _currentUserEmail.isNotEmpty) {
+            _teamMembers.add(TeamMember(
+              id: user.uid,
+              name: _currentUser,
+              email: _currentUserEmail,
+              role: _currentUserRole,
+              colorValue: 0xFF0EA5E9,
+            ));
+          }
+        }
+        notifyListeners();
+      });
+    } catch (e) {
+      debugPrint('Auth listener error: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
+  // --- Auth Operations ---
+
+  Future<void> signUp({
+    required String name,
+    required String email,
+    required String password,
+    required String role,
+  }) async {
+    await _firebaseService.signUp(
+      name: name,
+      email: email,
+      password: password,
+      role: role,
+    );
+    _currentUser = name;
+    _currentUserEmail = email;
+    _currentUserRole = role;
+    _firebaseUser = _firebaseService.currentUser;
+
+    final exists = _teamMembers
+        .any((m) => m.email.toLowerCase() == email.toLowerCase());
+    if (!exists) {
+      _teamMembers.add(TeamMember(
+        id: _firebaseUser?.uid ?? 'member-${_uuid.v4()}',
+        name: name,
+        email: email,
+        role: role,
+        colorValue: 0xFF0EA5E9,
+      ));
+    }
+
+    logActivity(
+      actorName: _currentUser,
+      actionType: 'MEMBER_JOINED',
+      entityType: 'Team',
+      entityTitle: name,
+      details: 'Registered new workspace account as $role.',
+    );
+    notifyListeners();
+  }
+
+  Future<void> signIn({
+    required String email,
+    required String password,
+  }) async {
+    final cred = await _firebaseService.signIn(email: email, password: password);
+    final user = cred.user;
+    if (user != null) {
+      _firebaseUser = user;
+      _currentUser = user.displayName ?? email.split('@').first;
+      _currentUserEmail = email;
+      final profile = await _firebaseService.getUserProfile(user.uid);
+      if (profile != null && profile['role'] != null) {
+        _currentUserRole = profile['role'];
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> signOut() async {
+    await _firebaseService.signOut();
+    _firebaseUser = null;
+    notifyListeners();
   }
 
   void setSelectedProject(String? projectId) {
@@ -125,6 +242,7 @@ class AppState extends ChangeNotifier {
     );
 
     _projects.insert(0, newProject);
+    _firebaseService.saveProject(newProject);
 
     logActivity(
       actorName: currentUser,
@@ -150,6 +268,7 @@ class AppState extends ChangeNotifier {
     final index = _projects.indexWhere((p) => p.id == updatedProject.id);
     if (index != -1) {
       _projects[index] = updatedProject;
+      _firebaseService.saveProject(updatedProject);
       logActivity(
         actorName: currentUser,
         actionType: 'PROJECT_UPDATED',
@@ -208,6 +327,7 @@ class AppState extends ChangeNotifier {
     );
 
     _tasks.insert(0, newTask);
+    _firebaseService.saveTask(newTask);
 
     final project = getProjectById(projectId);
     final assignee = getMemberById(assigneeId);
@@ -243,6 +363,7 @@ class AppState extends ChangeNotifier {
 
       final updatedTask = oldTask.copyWith(status: newStatus);
       _tasks[index] = updatedTask;
+      _firebaseService.saveTask(updatedTask);
 
       logActivity(
         actorName: currentUser,
@@ -281,6 +402,7 @@ class AppState extends ChangeNotifier {
     if (index != -1) {
       final oldTask = _tasks[index];
       _tasks[index] = updatedTask;
+      _firebaseService.saveTask(updatedTask);
 
       // Check differences for audit trail
       final List<String> changeNotes = [];
@@ -399,18 +521,17 @@ class AppState extends ChangeNotifier {
     String? relatedTaskId,
     String? relatedProjectId,
   }) {
-    _notifications.insert(
-      0,
-      AppNotification(
-        id: _uuid.v4(),
-        title: title,
-        message: message,
-        timestamp: DateTime.now(),
-        type: type,
-        relatedTaskId: relatedTaskId,
-        relatedProjectId: relatedProjectId,
-      ),
+    final notif = AppNotification(
+      id: _uuid.v4(),
+      title: title,
+      message: message,
+      timestamp: DateTime.now(),
+      type: type,
+      relatedTaskId: relatedTaskId,
+      relatedProjectId: relatedProjectId,
     );
+    _notifications.insert(0, notif);
+    _firebaseService.saveNotification(notif);
     notifyListeners();
   }
 
@@ -490,6 +611,7 @@ class AppState extends ChangeNotifier {
       projectId: projectId,
     );
     _activityLogs.insert(0, log);
+    _firebaseService.saveActivityLog(log);
   }
 
   // Seed sample data for high quality preview
