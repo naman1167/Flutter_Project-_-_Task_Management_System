@@ -72,9 +72,32 @@ A production-grade, responsive Flutter application designed for high-velocity te
 
 ---
 
+---
+
+## 📂 Group 3 Directory Structure
+
+```text
+Group 3/
+├── flutter/             # Complete Flutter Application Source Code
+│   ├── lib/             # Application source (models, screens, providers, widgets)
+│   ├── test/            # Comprehensive unit & widget tests (8/8 passing)
+│   ├── web/             # Web entry points & assets
+│   ├── android/         # Android native project configuration
+│   ├── ios/             # iOS native project configuration
+│   └── pubspec.yaml     # Dependencies & asset manifests
+├── REPORT/              # Project Documentation & Architecture Specification
+│   ├── TaskPulse_Architecture_Specification.docx
+│   └── MASTER_DOCUMENTATION_PROMPT.md
+└── recording/           # Demonstration & Screen Recording Files
+    └── Screen Recording 2026-09-19 at 4.59.57 PM.mov
+```
+
+---
+
 ## 🛠️ Technology Stack
 
 - **Framework**: [Flutter](https://flutter.dev) (v3.41.6+, Dart 3.11.4+)
+- **Cloud & Backend**: Firebase Authentication & Cloud Firestore
 - **Architecture & State Management**: [Provider](https://pub.dev/packages/provider) (`ChangeNotifier` reactive architecture)
 - **Typography & Icons**: [Google Fonts](https://pub.dev/packages/google_fonts) (Inter font family), Material Icons
 - **Formatting & Utilities**: [intl](https://pub.dev/packages/intl)
@@ -88,21 +111,15 @@ A production-grade, responsive Flutter application designed for high-velocity te
 - Flutter SDK installed (`>=3.41.0`)
 - Android SDK (for Android builds) or Google Chrome (for Web)
 
-### Installation
+### Running the App
 ```bash
-# Clone repository
-git clone https://github.com/naman1167/Flutter_Project-_-_Task_Management_System.git
-
-# Navigate to project folder
-cd Flutter_Project-_-_Task_Management_System
+# Navigate to the flutter application directory
+cd flutter
 
 # Install dependencies
 flutter pub get
-```
 
-### Running the App
-```bash
-# Run on Google Chrome
+# Run on Chrome
 flutter run -d chrome
 
 # Run on Android emulator or connected device
