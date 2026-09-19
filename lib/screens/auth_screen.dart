@@ -79,8 +79,13 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } on FirebaseAuthException catch (e) {
       String msg = 'Authentication error. Please try again.';
-      if (e.code == 'user-not-found') {
-        msg = 'No user found with this email.';
+      if (e.code == 'user-not-found' ||
+          e.code == 'invalid-credential' ||
+          e.message?.contains('malformed') == true ||
+          e.message?.contains('expired') == true) {
+        msg = _isSignUp
+            ? 'Registration notice: ${e.message ?? e.code}. You can also use Demo Mode below.'
+            : 'This account is not yet created in Firebase. Switch to "Create Account" tab to register, or click Demo Mode below.';
       } else if (e.code == 'wrong-password') {
         msg = 'Incorrect password. Please try again.';
       } else if (e.code == 'email-already-in-use') {
@@ -310,26 +315,61 @@ class _AuthScreenState extends State<AuthScreen> {
                           if (_errorMessage != null) ...[
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
+                                  horizontal: 14, vertical: 12),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFEF2F2),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
                                     color: const Color(0xFFFCA5A5)),
                               ),
-                              child: Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(Icons.error_outline_rounded,
-                                      color: Color(0xFFDC2626), size: 18),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      _errorMessage!,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFFB91C1C),
-                                        fontWeight: FontWeight.w500,
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(Icons.error_outline_rounded,
+                                          color: Color(0xFFDC2626), size: 18),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          _errorMessage!,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFFB91C1C),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
                                       ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      final appState = context.read<AppState>();
+                                      appState.loginAsDemoUser(
+                                        name: _nameController.text.trim().isNotEmpty
+                                            ? _nameController.text.trim()
+                                            : 'Naman Sethi',
+                                        role: _selectedRole,
+                                        email: _emailController.text.trim().isNotEmpty
+                                            ? _emailController.text.trim()
+                                            : 'naman.sethi@example.com',
+                                      );
+                                    },
+                                    icon: const Icon(Icons.bolt_rounded, size: 16),
+                                    label: const Text('Bypass & Enter Demo Mode ➔'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF4F46E5),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 8),
+                                      textStyle: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold),
+                                      minimumSize:
+                                          const Size(double.infinity, 32),
                                     ),
                                   ),
                                 ],
@@ -514,12 +554,49 @@ class _AuthScreenState extends State<AuthScreen> {
                                   ),
                           ),
 
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 10),
+
+                          // Instant Demo Access Button
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              final appState = context.read<AppState>();
+                              appState.loginAsDemoUser(
+                                name: _nameController.text.trim().isNotEmpty
+                                    ? _nameController.text.trim()
+                                    : 'Naman Sethi',
+                                role: _selectedRole,
+                                email: _emailController.text.trim().isNotEmpty
+                                    ? _emailController.text.trim()
+                                    : 'naman.sethi@example.com',
+                              );
+                            },
+                            icon: const Icon(Icons.bolt_rounded,
+                                color: Color(0xFF0EA5E9), size: 18),
+                            label: const Text(
+                              '⚡ Instant Demo Access (Skip Login)',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0EA5E9),
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 12),
+                              side:
+                                  const BorderSide(color: Color(0xFF0EA5E9)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 14),
 
                           // Demo quick fill row for presentation
                           const Divider(height: 24),
                           const Text(
-                            'Quick Demo / Viva Credentials',
+                            'Quick Demo / Viva Credentials (Click to Enter)',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 11,
@@ -538,41 +615,73 @@ class _AuthScreenState extends State<AuthScreen> {
                                 label: const Text('Naman (Lead)',
                                     style: TextStyle(fontSize: 11)),
                                 avatar: const Icon(Icons.person, size: 14),
-                                onPressed: () => _quickFillDemo(
-                                  'naman.sethi@example.com',
-                                  'Project Lead & Senior Engineer',
-                                  'Naman Sethi',
-                                ),
+                                onPressed: () {
+                                  _quickFillDemo(
+                                    'naman.sethi@example.com',
+                                    'Project Lead & Senior Engineer',
+                                    'Naman Sethi',
+                                  );
+                                  final appState = context.read<AppState>();
+                                  appState.loginAsDemoUser(
+                                    name: 'Naman Sethi',
+                                    role: 'Project Lead & Senior Engineer',
+                                    email: 'naman.sethi@example.com',
+                                  );
+                                },
                               ),
                               ActionChip(
                                 label: const Text('Soham (Tech Lead)',
                                     style: TextStyle(fontSize: 11)),
                                 avatar: const Icon(Icons.person, size: 14),
-                                onPressed: () => _quickFillDemo(
-                                  'soham.karandikar@example.com',
-                                  'Tech Lead & Architect',
-                                  'Soham Karandikar',
-                                ),
+                                onPressed: () {
+                                  _quickFillDemo(
+                                    'soham.karandikar@example.com',
+                                    'Tech Lead & Architect',
+                                    'Soham Karandikar',
+                                  );
+                                  final appState = context.read<AppState>();
+                                  appState.loginAsDemoUser(
+                                    name: 'Soham Karandikar',
+                                    role: 'Tech Lead & Architect',
+                                    email: 'soham.karandikar@example.com',
+                                  );
+                                },
                               ),
                               ActionChip(
                                 label: const Text('Aavani (Backend)',
                                     style: TextStyle(fontSize: 11)),
                                 avatar: const Icon(Icons.person, size: 14),
-                                onPressed: () => _quickFillDemo(
-                                  'aavani.perumbessi@example.com',
-                                  'Backend & Cloud Specialist',
-                                  'Aavani Perumbessi',
-                                ),
+                                onPressed: () {
+                                  _quickFillDemo(
+                                    'aavani.perumbessi@example.com',
+                                    'Backend & Cloud Specialist',
+                                    'Aavani Perumbessi',
+                                  );
+                                  final appState = context.read<AppState>();
+                                  appState.loginAsDemoUser(
+                                    name: 'Aavani Perumbessi',
+                                    role: 'Backend & Cloud Specialist',
+                                    email: 'aavani.perumbessi@example.com',
+                                  );
+                                },
                               ),
                               ActionChip(
                                 label: const Text('Naaz (Designer)',
                                     style: TextStyle(fontSize: 11)),
                                 avatar: const Icon(Icons.person, size: 14),
-                                onPressed: () => _quickFillDemo(
-                                  'naaz.ahmedi@example.com',
-                                  'Product Designer (UI/UX)',
-                                  'Naaz Ahmedi',
-                                ),
+                                onPressed: () {
+                                  _quickFillDemo(
+                                    'naaz.ahmedi@example.com',
+                                    'Product Designer (UI/UX)',
+                                    'Naaz Ahmedi',
+                                  );
+                                  final appState = context.read<AppState>();
+                                  appState.loginAsDemoUser(
+                                    name: 'Naaz Ahmedi',
+                                    role: 'Product Designer (UI/UX)',
+                                    email: 'naaz.ahmedi@example.com',
+                                  );
+                                },
                               ),
                             ],
                           ),

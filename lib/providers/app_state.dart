@@ -16,11 +16,13 @@ class AppState extends ChangeNotifier {
   User? _firebaseUser;
   StreamSubscription<User?>? _authSubscription;
 
+  bool _isDemoMode = false;
+
   String get currentUser => _currentUser;
   String get currentUserRole => _currentUserRole;
   String get currentUserEmail => _currentUserEmail;
   User? get firebaseUser => _firebaseUser;
-  bool get isAuthenticated => _firebaseUser != null;
+  bool get isAuthenticated => _firebaseUser != null || _isDemoMode;
 
   // State collections
   List<TeamMember> _teamMembers = [];
@@ -163,9 +165,20 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void loginAsDemoUser({String? name, String? role, String? email}) {
+    _isDemoMode = true;
+    if (name != null) _currentUser = name;
+    if (role != null) _currentUserRole = role;
+    if (email != null) _currentUserEmail = email;
+    notifyListeners();
+  }
+
   Future<void> signOut() async {
-    await _firebaseService.signOut();
+    try {
+      await _firebaseService.signOut();
+    } catch (_) {}
     _firebaseUser = null;
+    _isDemoMode = false;
     notifyListeners();
   }
 
