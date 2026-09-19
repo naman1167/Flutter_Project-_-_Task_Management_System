@@ -66,6 +66,7 @@ class AppState extends ChangeNotifier {
   AppState() {
     _seedInitialData();
     _initAuthListener();
+    syncAllToFirestore();
   }
 
   void _initAuthListener() {
@@ -92,6 +93,7 @@ class AppState extends ChangeNotifier {
               colorValue: 0xFF0EA5E9,
             ));
           }
+          syncAllToFirestore();
         }
         notifyListeners();
       });
@@ -108,6 +110,7 @@ class AppState extends ChangeNotifier {
 
   // --- Auth Operations ---
 
+  /// Sign up with Email, Password, Name, and Role
   Future<void> signUp({
     required String name,
     required String email,
@@ -120,16 +123,16 @@ class AppState extends ChangeNotifier {
       password: password,
       role: role,
     );
-    _currentUser = name;
-    _currentUserEmail = email;
+    _currentUser = name.trim();
     _currentUserRole = role;
+    _currentUserEmail = email.trim();
     _firebaseUser = _firebaseService.currentUser;
 
     final exists = _teamMembers
         .any((m) => m.email.toLowerCase() == email.toLowerCase());
     if (!exists) {
       _teamMembers.add(TeamMember(
-        id: _firebaseUser?.uid ?? 'member-${_uuid.v4()}',
+        id: _firebaseUser?.uid ?? _uuid.v4(),
         name: name,
         email: email,
         role: role,
@@ -171,6 +174,27 @@ class AppState extends ChangeNotifier {
     if (role != null) _currentUserRole = role;
     if (email != null) _currentUserEmail = email;
     notifyListeners();
+    syncAllToFirestore();
+  }
+
+  /// Sync all current projects, tasks, activity logs, and notifications to Firestore
+  Future<void> syncAllToFirestore() async {
+    try {
+      for (final p in _projects) {
+        await _firebaseService.saveProject(p);
+      }
+      for (final t in _tasks) {
+        await _firebaseService.saveTask(t);
+      }
+      for (final l in _activityLogs) {
+        await _firebaseService.saveActivityLog(l);
+      }
+      for (final n in _notifications) {
+        await _firebaseService.saveNotification(n);
+      }
+    } catch (e) {
+      debugPrint('Firestore syncAll error: $e');
+    }
   }
 
   Future<void> signOut() async {
