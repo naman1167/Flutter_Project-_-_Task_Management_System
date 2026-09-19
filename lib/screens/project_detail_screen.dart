@@ -493,13 +493,17 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         (m) => DropdownMenuItem(
                           value: m.id,
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               MemberAvatar(
                                   member: m, size: 18, showTooltip: false),
                               const SizedBox(width: 6),
-                              Text(
-                                m.name,
-                                style: const TextStyle(fontSize: 12),
+                              Flexible(
+                                child: Text(
+                                  m.name,
+                                  style: const TextStyle(fontSize: 12),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ],
                           ),

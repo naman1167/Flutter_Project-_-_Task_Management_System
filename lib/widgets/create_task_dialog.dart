@@ -133,6 +133,7 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
                     return DropdownMenuItem<String>(
                       value: p.id,
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
                             width: 10,
@@ -143,7 +144,12 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Text(p.title, overflow: TextOverflow.ellipsis),
+                          Flexible(
+                            child: Text(
+                              p.title,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
                     );
@@ -305,8 +311,13 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
                                         size: 20,
                                         showTooltip: false),
                                     const SizedBox(width: 6),
-                                    Text(m.name,
-                                        style: const TextStyle(fontSize: 13)),
+                                    Flexible(
+                                      child: Text(
+                                        m.name,
+                                        style: const TextStyle(fontSize: 13),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               );

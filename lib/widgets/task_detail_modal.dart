@@ -314,9 +314,13 @@ class _TaskDetailModalState extends State<TaskDetailModal> {
                                               size: 22,
                                               showTooltip: false),
                                           const SizedBox(width: 8),
-                                          Text(m.name,
-                                              style:
-                                                  const TextStyle(fontSize: 13)),
+                                          Flexible(
+                                            child: Text(
+                                              m.name,
+                                              style: const TextStyle(fontSize: 13),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     );
